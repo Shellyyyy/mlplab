@@ -11,7 +11,6 @@ import numpy as np
 import os
 from mlp import DEFAULT_SEED
 
-
 class DataProvider(object):
     """Generic data provider."""
 
@@ -129,15 +128,16 @@ class MNISTDataProvider(DataProvider):
         loaded = np.load(data_path)
         inputs, targets = loaded['inputs'], loaded['targets']
         inputs = inputs.astype(np.float32)
+        
         # pass the loaded data to the parent class __init__
         super(MNISTDataProvider, self).__init__(
             inputs, targets, batch_size, max_num_batches, shuffle_order, rng)
 
-    # def next(self):
-    #    """Returns next data batch or raises `StopIteration` if at end."""
-    #    inputs_batch, targets_batch = super(MNISTDataProvider, self).next()
-    #    return inputs_batch, self.to_one_of_k(targets_batch)
-    #
+    def next(self):
+        """Returns next data batch or raises `StopIteration` if at end."""
+        inputs_batch, targets_batch = super(MNISTDataProvider, self).next()
+        return inputs_batch, self.to_one_of_k(targets_batch)
+   
     def __next__(self):
         return self.next()
 
@@ -156,6 +156,12 @@ class MNISTDataProvider(DataProvider):
             to zero except for the column corresponding to the correct class
             which is equal to one.
         """
+        k_targets = []
+        for i in range(0,len(int_targets)):
+            zero_encoded = np.zeros(self.num_classes)
+            zero_encoded[int_targets[i]] = 1
+            k_targets.append(zero_encoded)
+        return np.array(k_targets)
         raise NotImplementedError()
 
 
@@ -188,19 +194,27 @@ class MetOfficeDataProvider(DataProvider):
             'Data file does not exist at expected path: ' + data_path
         )
         # load raw data from text file
-        # ...
+        loaded = np.loadtxt(data_path,skiprows=3,usecols=range(2,33))
         # filter out all missing datapoints and flatten to a vector
-        # ...
+        excluded = loaded>-98
+        loadedvector = loaded[excluded]
+        mu = np.mean(loadedvector)
+        stddev = np.std(loadedvector)
         # normalise data to zero mean, unit standard deviation
-        # ...
+        for i in range(0,len(loadedvector)):
+            loadedvector[i]=(loadedvector[i]-mu)/stddev            
         # convert from flat sequence to windowed data
         # ...
+        windowM = np.empty(shape=[0,window_size])
+        for i in range(0,len(loadedvector)-window_size+1):
+            windowM = np.r_[windowM,[loadedvector[i:window_size+i]]]
         # inputs are first (window_size - 1) entries in windows
-        # inputs = ...
+        inputs = windowM[:,0:window_size-1]
+        
         # targets are last entry in windows
-        # targets = ...
+        targets = windowM[:,window_size-1]
         # initialise base class with inputs and targets arrays
-        # super(MetOfficeDataProvider, self).__init__(
-        #     inputs, targets, batch_size, max_num_batches, shuffle_order, rng)
+        super(MetOfficeDataProvider, self).__init__(
+             inputs, targets, batch_size, max_num_batches, shuffle_order, rng)
     def __next__(self):
             return self.next()
